@@ -358,6 +358,7 @@ class DatasetGenerator {
         int[] data = new int[n];
 
         for (int i = 0; i < n; i++) {
+            // evenly spread values for testing general performance without clustering
             data[i] = r.nextInt(n * 10);
         }
 
