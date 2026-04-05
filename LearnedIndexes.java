@@ -4,27 +4,25 @@ import java.awt.*;
 
 public class LearnedIndexes {
     public static void main(String[] args) {
-        int[] sizes = {100_000, 500_000, 1_000_000};
-        int queryCount = 10_000;
-        int trials = 3;
+        int[] sizes = {10_000, 100_000, 1_000_000};
+        int queryCount = 100_000;
+        int trials = 5;
         String[] distributions = {"Uniform", "Sequential", "Skewed"};
 
         String[] names = {
             "Binary Search",
             "Learned Index",
             "Skip List",
-            //"Tree Map",
             "y-fast Trie"
         };
 
-        // Results for graphs (only 1M)
+        // Results only for 1M (used for graphs and per-distribution ranking)
         long[][] build1M = new long[names.length][3];
         long[][] query1M = new long[names.length][3];
         long[][] mem1M   = new long[names.length][3];
-        double[] nsPerQuery1M = new double[names.length];
 
         for (int size : sizes) {
-            System.out.println("\nRunning distributions for size: " + size + "\n");
+            System.out.println("\n Running distributions for size: " + size + "\n");
 
             for (int d = 0; d < distributions.length; d++) {
                 String dist = distributions[d];
@@ -37,7 +35,7 @@ public class LearnedIndexes {
 
                 int[] queries = Benchmark.queries(queryCount, size * 10);
 
-                // Correctness reference (Binary Search)
+                // Correctness reference
                 PredecessorIndex reference = new BinarySearchIndex();
                 reference.build(data);
 
@@ -51,7 +49,6 @@ public class LearnedIndexes {
                             case 0 -> new BinarySearchIndex();
                             case 1 -> new LearnedIndex();
                             case 2 -> new SkipListIndex();
-                            //case 3 -> new TreeMapIndex();
                             default -> new YFastTrieIndex();
                         };
 
@@ -93,6 +90,7 @@ public class LearnedIndexes {
                     System.out.printf("%-14s | Build: %7.3f ms | Query: %7.3f ms | ns/q: %4d | Memory: %6.3f MB\n",
                             names[i], avgBuild/1e6, avgQuery/1e6, nsPerQ, avgMem/1e6);
 
+                    // Store only for 1M
                     if (size == 1_000_000) {
                         build1M[i][d] = avgBuild;
                         query1M[i][d] = avgQuery;
@@ -104,43 +102,26 @@ public class LearnedIndexes {
             System.out.println("------------------------------------------------------------");
         }
 
-        // Compute averaged ns/query for 1M
-        for (int i = 0; i < names.length; i++) {
-            long totalQ = query1M[i][0] + query1M[i][1] + query1M[i][2];
-            nsPerQuery1M[i] = (double) totalQ / (3 * queryCount);
-        }
+        // RANKINGS FOR 1M ELEMENTS (PER DISTRIBUTION FOR QUERIES)
+        System.out.println("\nKEY OBSERVATIONS FOR 1M ELEMENTS\n");
 
-        //  Ranked Key Observations for 1M 
-        System.out.println("\nKey Observations (1M elements)\n");
-
-        // Prepare averages
+        // Overall averages for Build and Memory
         double[] avgBuild = new double[names.length];
-        double[] avgQuery = new double[names.length];
         double[] avgMem   = new double[names.length];
-
         for (int i = 0; i < names.length; i++) {
             avgBuild[i] = (build1M[i][0] + build1M[i][1] + build1M[i][2]) / 3.0 / 1e6;
-            avgQuery[i] = (query1M[i][0] + query1M[i][1] + query1M[i][2]) / 3.0 / 1e6;
             avgMem[i]   = (mem1M[i][0] + mem1M[i][1] + mem1M[i][2]) / 3.0 / 1e6;
         }
 
-        // Ranked by Query time (fastest first)
-        Integer[] orderQ = getRankedOrder(avgQuery);
-        System.out.println("Query Performance (fastest to slowest):");
-        for (int r = 0; r < names.length; r++) {
-            int idx = orderQ[r];
-            System.out.printf("(%d) %s - %.3f ms\n", r+1, names[idx], avgQuery[idx]);
-        }
-
-        // Ranked by Build time
+        // Ranked Build Time (overall)
         Integer[] orderB = getRankedOrder(avgBuild);
-        System.out.println("\nBuild Time (fastest to slowest):");
+        System.out.println("Build Time (fastest to slowest):");
         for (int r = 0; r < names.length; r++) {
             int idx = orderB[r];
             System.out.printf("(%d) %s - %.3f ms\n", r+1, names[idx], avgBuild[idx]);
         }
 
-        // Ranked by Memory (lowest to highest)
+        // Ranked Memory (overall)
         Integer[] orderM = getRankedOrder(avgMem);
         System.out.println("\nMemory Usage (lowest to highest):");
         for (int r = 0; r < names.length; r++) {
@@ -148,30 +129,28 @@ public class LearnedIndexes {
             System.out.printf("(%d) %s - %.3f MB\n", r+1, names[idx], avgMem[idx]);
         }
 
-        // Ranked Queries per Distribution (1M)
+        // PER-DISTRIBUTION QUERY RANKINGS
         System.out.println("\nQuery Performance per Distribution (1M elements):");
         for (int d = 0; d < distributions.length; d++) {
-            System.out.println(distributions[d] + ":");
-            // Get sorted indices by query time for this distribution
+            System.out.println("\n" + distributions[d] + ":");
             Integer[] ranked = getRankedOrderForDist(query1M, d);
             for (int r = 0; r < ranked.length; r++) {
                 int idx = ranked[r];
-                System.out.printf("(%d) %s - %.3f ms\n", r + 1, names[idx], query1M[idx][d] / 1_000_000.0);
+                System.out.printf("(%d) %s - %.3f ms\n",
+                        r + 1, names[idx], query1M[idx][d] / 1_000_000.0);
             }
-            System.out.println();
         }
 
-        // Draw graphs only for 1M
+        // Draw graphs
         SwingUtilities.invokeLater(() -> {
             JFrame frame = new JFrame("Learned Indexes - Graphs (1M elements only)");
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setSize(1350, 980);
-            frame.add(new GraphPanel(names, build1M, query1M, mem1M, nsPerQuery1M));
+            frame.add(new GraphPanel(names, build1M, query1M, mem1M, queryCount));
             frame.setVisible(true);
         });
     }
 
-    // Helper to get ranked indices (smallest to largest)
     private static Integer[] getRankedOrder(double[] values) {
         Integer[] indices = new Integer[values.length];
         for (int i = 0; i < values.length; i++) indices[i] = i;
@@ -186,19 +165,15 @@ public class LearnedIndexes {
         return indices;
     }
 }
-// Benchmark class
+
+// Class Benchmark
 class Benchmark {
     public static long queryTime(PredecessorIndex idx, int[] queries) {
-        int warmQ = Math.min(2000, queries.length);
-        // warm-up phase reduces JIT variability for more stable timing
-        for (int i = 0; i < warmQ; i++) {
-            idx.predecessor(queries[i]);
-        }
+        int warmQ = Math.min(10000, queries.length);
+        for (int i = 0; i < warmQ; i++) idx.predecessor(queries[i]);
 
         long start = System.nanoTime();
-        for (int q : queries) {
-            idx.predecessor(q);
-        }
+        for (int q : queries) idx.predecessor(q);
         return System.nanoTime() - start;
     }
 
@@ -216,38 +191,33 @@ class Benchmark {
         sleep();
         long after = rt.totalMemory() - rt.freeMemory();
 
-        long memoryUsed = Math.max(0, after - before);
-        return new long[]{memoryUsed, buildTime};
+        return new long[]{Math.max(0, after - before), buildTime};
     }
 
     private static void sleep() {
-        try {
-            Thread.sleep(20);
-        } catch (Exception ignored) {}
+        try { Thread.sleep(20); } catch (Exception ignored) {}
     }
 
     public static int[] queries(int n, int max) {
         Random r = new Random(99);
         int[] q = new int[n];
-        for (int i = 0; i < n; i++) {
-            q[i] = r.nextInt(max);
-        }
+        for (int i = 0; i < n; i++) q[i] = r.nextInt(max);
         return q;
     }
 }
 
-// GraphPanel
+// Class GraphPanel 
 class GraphPanel extends JPanel {
     String[] names;
     long[][] buildRes, queryRes, memRes;
-    double[] nsPerQuery;
+    int queryCount;
 
-    GraphPanel(String[] n, long[][] b, long[][] q, long[][] m, double[] npq) {
+    GraphPanel(String[] n, long[][] b, long[][] q, long[][] m, int qc) {
         this.names = n;
         this.buildRes = b;
         this.queryRes = q;
         this.memRes = m;
-        this.nsPerQuery = npq;
+        this.queryCount = qc;
         setBackground(Color.WHITE);
     }
 
@@ -259,52 +229,55 @@ class GraphPanel extends JPanel {
 
         int w = getWidth();
         int h = getHeight();
-        int gw = w / 2 - 70;
-        int gh = h / 2 - 90;
+        int gw = (w - 120) / 2;
+        int gh = (h - 200) / 2;
 
-        // left column: query time (multi-bar) and memory (single-bar)
-        drawMultiBarGraph(g2, "1. Query Time (ms)", 40, 80, gw, gh, queryRes,
-                new Color[]{new Color(0, 100, 200), new Color(0, 180, 0), new Color(200, 140, 0)});
+        Color[] colors = {
+            new Color(0, 100, 200),   // Uniform - blue
+            new Color(0, 180, 0),     // Sequential - green
+            new Color(200, 140, 0)    // Skewed - orange
+        };
 
-        drawSingleBarGraph(g2, "2. Build Time (ms)", w/2 + 30, 50, gw, gh, average(buildRes));
-        drawSingleBarGraph(g2, "3. Memory Usage (MB)", 40, h/2 + 50, gw, gh, average(memRes));
+        // 1. Query Time (ms) - top left
+        drawMultiBarGraph(g2, "Query Time (ms)", 40, 80, gw, gh, queryRes, colors, true);
 
-        // right column: ns per query (single bar, converted from double array)
-        long[][] nsMatrix = new long[names.length][1];
+        // 2. Build Time (ms) - top right
+        drawMultiBarGraph(g2, "Build Time (ms)", w/2 + 30, 80, gw, gh, buildRes, colors, true);
+
+        // 3. Memory Usage (MB) - bottom left
+        drawMultiBarGraph(g2, "Memory Usage (MB)", 40, h/2 + 100, gw, gh, memRes, colors, true);
+
+        // 4. ns per Query - bottom right
+        long[][] nsRes = new long[names.length][3];
         for (int i = 0; i < names.length; i++) {
-            nsMatrix[i][0] = (long) nsPerQuery[i];
+            for (int d = 0; d < 3; d++) {
+                nsRes[i][d] = queryRes[i][d] / queryCount;
+            }
         }
-        drawSingleBarGraph(g2, "4. ns per Query", w/2 + 30, h/2 + 50, gw, gh, nsMatrix);
+        drawMultiBarGraph(g2, "ns per Query", w/2 + 30, h/2 + 100, gw, gh, nsRes, colors, false);
     }
 
-    private long[][] average(long[][] data) {
-        long[][] avg = new long[names.length][1];
-        for (int i = 0; i < names.length; i++) {
-            avg[i][0] = (data[i][0] + data[i][1] + data[i][2]) / 3;
-        }
-        return avg;
-    }
-
-    private void drawMultiBarGraph(Graphics2D g, String title, int x, int y, int gw, int gh, long[][] data, Color[] colors) {
-        int trials = 3;
+    private void drawMultiBarGraph(Graphics2D g, String title, int x, int y, int gw, int gh,
+                                   long[][] data, Color[] colors, boolean isLargeValue) {
 
         g.setColor(Color.BLACK);
+        g.setFont(new Font("SansSerif", Font.BOLD, 14));
         g.drawString(title, x, y - 40);
 
+        // Legend
         String[] distNames = {"Uniform", "Sequential", "Skewed"};
-        for (int i = 0; i < trials; i++) {
+        for (int i = 0; i < 3; i++) {
             g.setColor(colors[i]);
             g.fillRect(x + i * 130, y - 35, 15, 15);
             g.setColor(Color.BLACK);
+            g.setFont(new Font("SansSerif", Font.PLAIN, 12));
             g.drawString(distNames[i], x + i * 130 + 20, y - 22);
         }
 
-        // find global max for scaling all bars consistently
+        // Find max for scaling
         long maxVal = 1;
         for (long[] row : data) {
-            for (long v : row) {
-                if (v > maxVal) maxVal = v;
-            }
+            for (long v : row) if (v > maxVal) maxVal = v;
         }
 
         int barW = gw / (names.length * 5);
@@ -312,42 +285,27 @@ class GraphPanel extends JPanel {
 
         for (int i = 0; i < names.length; i++) {
             int gx = x + i * groupW + 15;
+            g.setColor(Color.BLACK);
             g.drawString(names[i], gx - 10, y + gh + 30);
 
-            for (int j = 0; j < trials; j++) {
+            for (int j = 0; j < 3; j++) {
                 long val = data[i][j];
-                int barH = (int) ((val * (gh - 60.0)) / maxVal);
+                double ratio = (double) val / maxVal;
+                int barH = (int) (ratio * (gh - 60));
+                if (barH < 4) barH = 4;   // minimum visible height
+
                 g.setColor(colors[j]);
                 g.fillRect(gx + j * (barW + 10), y + gh - barH - 30, barW, barH);
 
+                // Label
                 g.setColor(Color.BLACK);
-                g.drawString(String.format("%.1f", val / 1_000_000.0), gx + j*(barW + 10) + 2, y + gh - barH - 35);
+                g.setFont(new Font("SansSerif", Font.PLAIN, 10));
+                if (isLargeValue) {
+                    g.drawString(String.format("%.1f", val / 1_000_000.0), gx + j*(barW + 10) + 2, y + gh - barH - 35);
+                } else {
+                    g.drawString(String.valueOf(val), gx + j*(barW + 10) + 2, y + gh - barH - 35);
+                }
             }
-        }
-    }
-
-    private void drawSingleBarGraph(Graphics2D g, String title, int x, int y, int gw, int gh, long[][] data) {
-        g.setColor(Color.BLACK);
-        g.drawString(title, x, y - 15);
-
-        // find max for vertical scaling
-        long maxVal = 1;
-        for (int i = 0; i < names.length; i++) {
-            if (data[i][0] > maxVal) maxVal = data[i][0];
-        }
-
-        int barW = gw / (names.length * 2);
-        for (int i = 0; i < names.length; i++) {
-            int gx = x + i * (barW * 2 + 40);
-            long val = data[i][0];
-            int barH = (int) ((val * (gh - 60.0)) / maxVal);
-
-            g.setColor(new Color(70, 130, 180));
-            g.fillRect(gx, y + gh - barH - 30, barW, barH);
-
-            g.setColor(Color.BLACK);
-            g.drawString(names[i], gx - 5, y + gh + 30);
-            g.drawString(String.format("%.1f", val / 1_000_000.0), gx + 2, y + gh - barH - 35);
         }
     }
 }
