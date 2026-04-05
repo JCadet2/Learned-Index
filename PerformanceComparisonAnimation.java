@@ -95,10 +95,10 @@ public class PerformanceComparisonAnimation extends JPanel{
         RenderingHints.VALUE_ANTIALIAS_ON
         );
 
-        g.setFont(new Font("Arial", Font.BOLD, 20));
+        g.setFont(new Font("Arial", Font.BOLD, 22));
         g.drawString("Query Performance Comparison", 240, 40);
 
-        g.setFont(new Font("Arial", Font.BOLD, 16));
+        g.setFont(new Font("Arial", Font.BOLD, 18));
         g.drawString(sizes[dataset], 270, 70);
 
         drawAxes(g);
